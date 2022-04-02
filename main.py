@@ -2,78 +2,23 @@ from tkinter import *
 import random
 import time
 import socket
-import select
-import errno
-import sys
-
-# HEADER_LENGTH = 10
-
-# IP = '127.0.0.1'
-# PORT = 8080
-
-# my_username = input("Username: ")
-
-# client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# client_socket.connect((IP, PORT))
-# client_socket.setblocking(False)
-
-# username = my_username.encode("utf-8")
-# username_header = f"{len(username):<{HEADER_LENGTH}}".encode("utf-8")
-# client_socket.send(username_header + username)
-
-# while True:
-#     #message = input(f"{my_username} > ")
-#     message = ""
-
-#     if message:
-#         message = message.encode('utf-8')
-#         message_header = f"{len(message):<{HEADER_LENGTH}}".encode("utf-8")
-#         client_socket.send(message_header + message)
-    
-#     try:
-#         while True:
-#             username_header = client_socket.recv(HEADER_LENGTH)
-#             if not len(username_header):
-#                 print("connection closed by the server")
-#                 sys.exit()
-#             username_length = int(username_header.decode("utf-8").strip())
-#             username = client_socket.recv(username_length).decode("utf-8")
-
-#             message_header = client_socket.recv(HEADER_LENGTH)
-#             message_length = int(message_header.decode("utf-8").strip())
-#             message = client_socket.recv(message_length).decode("utf-8")
-
-#             print(f"{username} > {message}")
-    
-#     except IOError as e:
-#         if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
-#             print('Reading error', str(e))
-#             sys.exit()
-#         continue
-
-#     except Exception as e:
-#         print('General error', str(e))
-#         sys.exit()
-
-
+import threading
+import os
 
 class GUI:
     default_color = '#AAAAFF'
     hightlight_color = 'red'
     selection_color = 'green'
-    def __init__(self):
-        self.root = Tk()
-        self.root.title('Sort Application')
-        self.root.resizable(False, False)
-        self.canvas = Canvas(self.root, width = 1000, height = 500)
+    def __init__(self, root, canvas):
+        self.root = root
+        self.canvas = canvas
         self.array = []
         self.items = []
+        self.socket = None
         self.prevArray = []
         self.scaleValue = 10
         self.speed = 0.01
-        self.canvas.pack()
         self.mainSettings()
-        self.root.mainloop()
 
     def mainSettings(self):
         self.createButton(20, 20, "Rand Array", self.fillRandArray)
@@ -84,19 +29,27 @@ class GUI:
         self.createSpeedScale(100, 38)
         self.createButton(215, 50, "Quick sort", self.startQuickSort)
         self.createButton(300, 50, "Insertion sort", self.insertionSort)
+        self.createButton(600, 20, "Draw circle", self.drawCircle)
         self.createDrawingBtn()
         self.createEraseBtn()
 
     def getValue(self, event):
         self.scaleValue = self.scale.get()
+    
+    def setSocket(self, socket):
+        self.socket = socket
 
     def test(self):
         print(self.array)
-        #print(self.canvas.find_all())
-        #items = list(self.canvas.find_all())
-        #self.canvas.move(items[0], 20, 0)
-        #self.canvas.delete(items[0])
-        #self.canvas.itemconfig(items[0], fill = 'green')
+        #print(canvas.find_all())
+        #items = list(canvas.find_all())
+        #canvas.move(items[0], 20, 0)
+        #canvas.delete(items[0])
+        #canvas.itemconfig(items[0], fill = 'green')
+    
+    def drawCircle(self):
+        self.canvas.create_oval(100, 100, 300, 300, outline = "black", width = 2)
+        print("draw circle function")
 
     def useDrawingMode(self):
         self.old_x = None
@@ -118,6 +71,11 @@ class GUI:
     def use_pen(self):
         self.activate_button(self.pen_button)
     
+    def drawIncomeData(self, x0, y0, x1, y1):
+        self.canvas.create_line(x0, y0, x1, y1,
+                               width=self.line_width, fill="red",
+                               capstyle=ROUND, smooth=TRUE, splinesteps=36)
+    
     def paint(self, event):
         if self.eraser_on:
             paint_color = 'SystemButtonFace'
@@ -125,6 +83,10 @@ class GUI:
         else:
             paint_color = self.color
         if self.old_x and self.old_y:
+            self.coord_x = event.x
+            self.coord_y = event.y
+            dataToSend = str(self.old_x) + " " + str(self.old_y) + " " + str(event.x) + " " + str(event.y)
+            self.socket.send(dataToSend.encode('ascii'))
             self.canvas.create_line(self.old_x, self.old_y, event.x, event.y,
                                width=self.line_width, fill=paint_color,
                                capstyle=ROUND, smooth=TRUE, splinesteps=36)
@@ -232,23 +194,23 @@ class GUI:
         self.finalHightLight()
 
     def partition(self, array, low, high):
-      pivot = array[high]
-      i = low - 1
-      for j in range(low, high):
-        if array[j] <= pivot:
-          i = i + 1
-          (array[i], array[j]) = (array[j], array[i])
-          self.reDrawChart(i, j)
+        pivot = array[high]
+        i = low - 1
+        for j in range(low, high):
+            if array[j] <= pivot:
+                i = i + 1
+                (array[i], array[j]) = (array[j], array[i])
+                self.reDrawChart(i, j)
 
-      (array[i + 1], array[high]) = (array[high], array[i + 1])
-      self.reDrawChart(i + 1, high)
-      return i + 1
+        (array[i + 1], array[high]) = (array[high], array[i + 1])
+        self.reDrawChart(i + 1, high)
+        return i + 1
 
     def quickSort(self, array, low, high):
-      if low < high:
-        pi = self.partition(array, low, high)
-        self.quickSort(array, low, pi - 1)
-        self.quickSort(array, pi + 1, high)
+        if low < high:
+            pi = self.partition(array, low, high)
+            self.quickSort(array, low, pi - 1)
+            self.quickSort(array, pi + 1, high)
 
     def startQuickSort(self):
         self.quickSort(self.array, 0, len(self.array) - 1)
@@ -265,4 +227,42 @@ class GUI:
             self.array[j + 1] = key
         self.finalHightLight()
 
-gui = GUI()
+UDP_MAX_SIZE = 65535
+
+root = Tk()
+root.title('Sort Application')
+root.resizable(False, False)
+canvas = Canvas(root, width = 1000, height = 500)
+canvas.pack()
+gui = GUI(root, canvas)
+
+def listen(s: socket.socket):
+    while True:
+        msg = s.recv(UDP_MAX_SIZE)
+        msg = msg.decode('ascii')
+        string = msg.split(" ")
+        print(string)
+        x0 = int(string[1])
+        y0 = int(string[2])
+        x1 = int(string[3])
+        y1 = int(string[4])
+        gui.drawIncomeData(x0, y0, x1, y1)
+        print('\r\r' + msg + '\n' + f'you: ', end='')
+
+
+def connect(host: str = '127.0.0.1', port: int = 3000):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    s.connect((host, port))
+
+    threading.Thread(target=listen, args=(s,), daemon=True).start()
+
+    gui.setSocket(s)
+    root.mainloop()
+
+    # s.send('__join'.encode('ascii'))
+
+    # s.send('hello'.encode('ascii'))
+
+if __name__ == "__main__":
+    connect()
