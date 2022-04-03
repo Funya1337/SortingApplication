@@ -1,9 +1,6 @@
 from tkinter import *
 import random
 import time
-import socket
-import threading
-import os
 
 class GUI:
     default_color = '#AAAAFF'
@@ -71,9 +68,14 @@ class GUI:
     def use_pen(self):
         self.activate_button(self.pen_button)
     
-    def drawIncomeData(self, x0, y0, x1, y1):
+    def drawIncomeData(self, x0, y0, x1, y1, paintColor):
+        if paintColor != 'SystemButtonFace':
+            paintColor = 'red'
+            line_width = 5
+        else:
+            line_width = 15
         self.canvas.create_line(x0, y0, x1, y1,
-                               width=self.line_width, fill="red",
+                               width=line_width, fill=paintColor,
                                capstyle=ROUND, smooth=TRUE, splinesteps=36)
     
     def paint(self, event):
@@ -85,7 +87,7 @@ class GUI:
         if self.old_x and self.old_y:
             self.coord_x = event.x
             self.coord_y = event.y
-            dataToSend = str(self.old_x) + " " + str(self.old_y) + " " + str(event.x) + " " + str(event.y)
+            dataToSend = str(self.old_x) + " " + str(self.old_y) + " " + str(event.x) + " " + str(event.y) + " " + str(paint_color)
             self.socket.send(dataToSend.encode('ascii'))
             self.canvas.create_line(self.old_x, self.old_y, event.x, event.y,
                                width=self.line_width, fill=paint_color,
@@ -226,43 +228,3 @@ class GUI:
                     j -= 1
             self.array[j + 1] = key
         self.finalHightLight()
-
-UDP_MAX_SIZE = 65535
-
-root = Tk()
-root.title('Sort Application')
-root.resizable(False, False)
-canvas = Canvas(root, width = 1000, height = 500)
-canvas.pack()
-gui = GUI(root, canvas)
-
-def listen(s: socket.socket):
-    while True:
-        msg = s.recv(UDP_MAX_SIZE)
-        msg = msg.decode('ascii')
-        string = msg.split(" ")
-        print(string)
-        x0 = int(string[1])
-        y0 = int(string[2])
-        x1 = int(string[3])
-        y1 = int(string[4])
-        gui.drawIncomeData(x0, y0, x1, y1)
-        print('\r\r' + msg + '\n' + f'you: ', end='')
-
-
-def connect(host: str = '127.0.0.1', port: int = 3000):
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    s.connect((host, port))
-
-    threading.Thread(target=listen, args=(s,), daemon=True).start()
-
-    gui.setSocket(s)
-    root.mainloop()
-
-    # s.send('__join'.encode('ascii'))
-
-    # s.send('hello'.encode('ascii'))
-
-if __name__ == "__main__":
-    connect()

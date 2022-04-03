@@ -2,7 +2,7 @@ import socket
 
 UDP_MAX_SIZE = 65535
 
-def listen(host: str = '127.0.0.1', port: int = 3000):
+def listen(host: str = '192.168.1.70', port: int = 3000):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     s.bind((host, port))
